@@ -60,8 +60,9 @@ label_cols = [
     "Support Devices",
 ]
 
-# use validation split for the demo; switch to "train" for full training
-raw_ds = load_dataset("danjacobellis/chexpert", "default", split="validation")
+# Load train and validation splits
+raw_ds_train = load_dataset("danjacobellis/chexpert", "default", split="validation")   # set to "train" for training
+raw_ds_eval = load_dataset("danjacobellis/chexpert", "default", split="validation")
 
 # Updated instruction for structured reasoning and answer
 # Added emphasis on ONLY outputting the tags.
@@ -87,7 +88,7 @@ def prepare_prompt(sample):
             ],
         }
     ]
-    print(f"Conversation: {conversation}")
+    # Removed print(f"Conversation: {conversation}") to avoid excessive output
     #sample["messages"] = conversation
     # Add the formatted prompt string explicitly
     sample["prompt"] = tokenizer.apply_chat_template(
@@ -105,14 +106,18 @@ def extract_gt(sample):
     sample["gt_labels"] = [c for c in label_cols if sample[c] == 3]
     return sample
 
-proc_ds = (
-    raw_ds.map(extract_gt, remove_columns=[])
-           .map(prepare_prompt, remove_columns=[])  # keep all cols for rewards
+# Process both datasets
+proc_ds_train = (
+    raw_ds_train.map(extract_gt, remove_columns=[])
+                .map(prepare_prompt, remove_columns=[])  # keep all cols for rewards
+)
+proc_ds_eval = (
+    raw_ds_eval.map(extract_gt, remove_columns=[])
+               .map(prepare_prompt, remove_columns=[])  # keep all cols for rewards
 )
 
 # ---------------------------------------------------------------------
 # 3.  REWARD FUNCTIONS  ────────────────────────────────────────────────
-# ---------------------------------------------------------------------
 # Regex to find labels (case-insensitive)
 label_regex = re.compile(
     r"|".join([re.escape(c) for c in label_cols]), re.IGNORECASE
@@ -265,7 +270,12 @@ config = GRPOConfig(
     gradient_accumulation_steps=2,      # per mantenere batch totali
     lr_scheduler_type = "cosine",
     optim = "paged_adamw_8bit",
-    logging_steps=1,
+    sync_ref_model = True, # Sync ref model with main model after each step
+    logging_steps=1, # Log less frequently
+    #evaluation_strategy="steps", # Enable evaluation during training
+    #eval_steps=50, # Evaluate every 50 steps
+    #save_strategy="steps", # Save checkpoints based on steps
+    #save_steps=50, # Save every 50 steps (aligned with eval)
     report_to = "none", # Can use Weights & Biases
     output_dir = "outputs",
 )
@@ -275,7 +285,8 @@ trainer = GRPOTrainer(
     # Pass the updated reward_fn directly
     reward_funcs=reward_fn,
     args=config,
-    train_dataset=proc_ds,
+    train_dataset=proc_ds_train, # Use processed training data
+    eval_dataset=proc_ds_eval,   # Use processed validation data
     # Ensure the tokenizer is passed if needed by the trainer for processing completions/prompts internally
     # If the multi-modal tokenizer works for text, it might be fine.
     # Otherwise, consider using a text-only tokenizer here if available and appropriate.
