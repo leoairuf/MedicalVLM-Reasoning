@@ -15,11 +15,18 @@ from collections import defaultdict
 from datasets import load_dataset
 from sklearn.metrics import f1_score
 
+# Suggerimento: per l'errore "Too many open files", prova ad aumentare il limite
+# di file aperti nel tuo terminale prima di eseguire lo script, ad esempio:
+# ulimit -n 65535
+# Imposta WANDB_DISABLED per evitare problemi con i file aperti se wandb non è in uso.
+os.environ["WANDB_DISABLED"] = "false" # Modificato per abilitare wandb
+
 from unsloth import FastModel, FastVisionModel
 
 from trl import GRPOConfig, GRPOTrainer
 from transformers import AutoTokenizer
 
+import wandb # Aggiunto import wandb
 
 import types, unsloth_zoo.peft_utils as _pz
 
@@ -31,6 +38,7 @@ model_name = "unsloth/gemma-3-4b-it"
 model, tokenizer = FastVisionModel.from_pretrained(
     model_name,
     load_in_4bit=True,
+    load_in_8bit=False,
     use_gradient_checkpointing = "unsloth",  # disabilitato per evitare il hook PEFT
 )
 
@@ -40,7 +48,7 @@ model = FastVisionModel.get_peft_model(
     finetune_language_layers=True,
     finetune_attention_modules=True,
     finetune_mlp_modules=True,
-    r=32,
+    r=16,
     lora_alpha=16,
     lora_dropout=0.0,
     bias="none",
@@ -61,11 +69,19 @@ label_cols = [
 ]
 
 # Load train and validation splits
-raw_ds_train = load_dataset("danjacobellis/chexpert", "default", split="validation")   # set to "train" for training
+# raw_ds_train = load_dataset("danjacobellis/chexpert", "default", split="validation")   # set to "train" for training
 raw_ds_eval = load_dataset("danjacobellis/chexpert", "default", split="validation")
 
+
+#######################################################
+####################################################
+#############################################
+# Per il test, seleziona un piccolo sottoinsieme casuale dal set di validazione per l'addestramento
+n_samples_train = 3  # Numero di campioni da selezionare per raw_ds_train
+raw_ds_train = raw_ds_eval.shuffle(seed=42).select(range(n_samples_train))
+
+
 # Updated instruction for structured reasoning and answer
-# Added emphasis on ONLY outputting the tags.
 instruction = (
     "Analyze the provided chest X-ray image. First, provide your step-by-step reasoning "
     "for the diagnosis within <thinking> tags. Then, provide the final classification "
@@ -126,7 +142,13 @@ label_regex = re.compile(
 answer_regex = re.compile(r"<answer>(.*?)</answer>", re.IGNORECASE | re.DOTALL)
 # Regex to check for the overall structure - updated for exact match
 # Allows optional leading/trailing whitespace but nothing else outside the tags.
-structure_regex = re.compile(r"^\s*<thinking>.*?</thinking>\s*<answer>.*?</answer>\s*$", re.IGNORECASE | re.DOTALL)
+# This version prohibits any <thinking>, </thinking>, <answer>, </answer> tags
+# within the main content of the thinking or answer blocks.
+NO_NESTED_TAGS_CONTENT_PATTERN = r"(?:(?!</?(?:thinking|answer)>).)*?"
+structure_regex = re.compile(
+    rf"^\s*<thinking>({NO_NESTED_TAGS_CONTENT_PATTERN})</thinking>\s*<answer>({NO_NESTED_TAGS_CONTENT_PATTERN})</answer>\s*$",
+    re.IGNORECASE | re.DOTALL
+)
 
 
 def parse_pred(text: str):
@@ -218,13 +240,14 @@ def reward_fn(prompts: list[str], completions: list[str], **kwargs):
         print(f"Format Reward (fmt_r): {fmt_r}") # Stampa il risultato di format_reward
 
         cls_r = -1.0 # Default in caso di errore
+        pred_labels = [] # Inizializza pred_labels
         # Only calculate classification reward if format is somewhat correct (contains answer tag)
         # to avoid errors in parse_pred if the format is completely wrong.
         # Alternatively, always calculate it, as parse_pred handles missing tags.
         # Let's keep calculating it, as parse_pred returns [] if no answer tag.
         try:
             # Stampa i risultati intermedi di classification_reward
-            pred_labels = parse_pred(pred_text)
+            pred_labels = parse_pred(pred_text) # pred_labels viene assegnato qui
             print(f"Parsed Predicted Labels: {pred_labels}")
             y_true = [1 if lbl in current_gt_labels else 0 for lbl in label_cols]
             y_pred = [1 if lbl in pred_labels else 0 for lbl in label_cols]
@@ -245,8 +268,16 @@ def reward_fn(prompts: list[str], completions: list[str], **kwargs):
         # Adjust weighting? Maybe give more weight to format now?
         # Example: 50% format, 50% classification
         final_reward = 0.5 * fmt_r + 0.5 * cls_r
+        
+        # Aggiungi bonus se la lista delle etichette predette è ESATTAMENTE corretta
+        # Confronta come insiemi per ignorare l'ordine e gestire l'unicità
+        # pred_labels è già stato calcolato sopra
+        if set(pred_labels) == set(current_gt_labels):
+            final_reward += 1.0
+            print(f"Bonus +1.0 applicato per corrispondenza esatta delle etichette.")
+
         rewards.append(final_reward)
-        print(f"Combined Reward (50/50): {final_reward}") # Updated weighting
+        print(f"Combined Reward (50/50, con bonus potenziale): {final_reward}") # Updated weighting and message
         print(f"--- End Sample {idx} ---")
         # --- Debug Prints End ---
 
@@ -264,19 +295,21 @@ def reward_fn(prompts: list[str], completions: list[str], **kwargs):
 config = GRPOConfig(
     max_steps=500,          # increase for better results
     learning_rate=5e-6,
-    num_generations=8,      # completions per prompt
-    per_device_train_batch_size=8,      # aggiornato da 2 a 8
-    per_device_eval_batch_size=8,       # coerente con train
-    gradient_accumulation_steps=2,      # per mantenere batch totali
+    num_generations=4,      # Ridotto da 6 a 2 per ridurre il consumo di VRAM
+    per_device_train_batch_size=1,      # aggiornato da 2 a 8
+    per_device_eval_batch_size=1,       # coerente con train
+    gradient_accumulation_steps=8,      # per mantenere batch totali
     lr_scheduler_type = "cosine",
     optim = "paged_adamw_8bit",
     sync_ref_model = True, # Sync ref model with main model after each step
     logging_steps=1, # Log less frequently
+    max_completion_length=1024, # Increased to allow for longer completions
+    temperature=1.1,
     #evaluation_strategy="steps", # Enable evaluation during training
     #eval_steps=50, # Evaluate every 50 steps
     #save_strategy="steps", # Save checkpoints based on steps
     #save_steps=50, # Save every 50 steps (aligned with eval)
-    report_to = "none", # Can use Weights & Biases
+    report_to = "wandb", # Modificato per usare Weights & Biases
     output_dir = "outputs",
 )
 
