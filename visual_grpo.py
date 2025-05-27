@@ -157,7 +157,7 @@ def classification_reward(pred_text: str, gt_labels) -> float:
         return 0.5  # neutral when both empty
     f1 = f1_score(y_true, y_pred, average="micro", zero_division=0) # Added zero_division=0
     return 2 * f1 - 1  # scale F1∈[0,1] → reward∈[-1,1]
-
+# TODO: check the micro vs. macro F1 choice
 
 # GRPOTrainer expects a single callable that returns list[float]
 # Updated signature to accept arguments passed by GRPOTrainer
@@ -357,7 +357,7 @@ def main():
         optim="paged_adamw_8bit",
         sync_ref_model=True,
         logging_steps=1,
-        max_completion_length=2048,
+        max_completion_length=1024,
         temperature=1.1,
         # evaluation_strategy="steps", # Abilitare se si desidera la valutazione durante l'addestramento
         # eval_steps=50,
