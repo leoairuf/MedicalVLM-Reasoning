@@ -178,3 +178,5 @@ cython_debug/
 unsloth_compiled_cache
 
 wandb
+
+hf_cache
