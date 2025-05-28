@@ -1,0 +1,123 @@
+# HPC Alvis – Comandi utili e sintesi (2025)
+
+---
+
+## Gestione moduli e ambiente
+
+```
+module avail         # Lista tutti i moduli software disponibili
+module spider <pkg>  # Cerca un modulo in tutto l'albero
+module list          # Mostra i moduli attualmente caricati
+module purge         # Rimuove tutti i moduli caricati (ambiente "pulito")
+module load <nome>   # Carica un modulo specifico
+module show <nome>   # Mostra le info/dipendenze del modulo
+```
+
+---
+
+## Virtual environment Python
+
+```
+python3 -m venv --system-site-packages <venv_name>  # Crea un virtualenv che eredita i pacchetti globali dei moduli
+source <venv_path>/bin/activate                     # Attiva il virtualenv
+which python; which pip                             # Verifica che usi il venv
+pip install -r requirements.txt                     # Installa i pacchetti nel venv
+
+deactivate                                          # Disattiva il virtualenv
+cat <venv_path>/pyvenv.cfg                         # Vedi con quale python è stato creato il venv
+```
+
+---
+
+## Comandi Slurm essenziali
+
+```
+squeue -u $USER                # Vedi tutti i tuoi job in coda o running
+scontrol show job <JOBID>      # Dettagli avanzati su un job specifico
+sacct -j <JOBID>               # Statistiche storiche su un job completato
+sprio -u $USER                 # Mostra la priorità dei tuoi job
+scancel <JOBID>                # Cancella un job attivo
+```
+
+---
+
+## Allocazione interattiva GPU
+
+```
+srun -A NAISS2024-5-577 -p alvis --gpus-per-node=A100fat:1 --time=01:00:00 --pty bash
+# Avvia una sessione interattiva con 1 GPU A40 per 4 ore
+
+# (sostituisci con "A100fat" se vuoi una GPU A100fat)
+```
+
+---
+
+## Navigazione e uso storage
+
+```
+C3SE_quota                      # Mostra l'uso e la quota dei tuoi storage
+where-are-my-files <dir>        # Conta rapidamente i file (inode) per sottodirectory
+cd <path>                       # Vai in una cartella
+ls, du -sh *, find . -type f    # Esplora lo spazio e trova file pesanti
+rm -rf <dir>                    # Cancella una directory (attenzione, irreversibile!)
+```
+
+---
+
+## Monitoraggio GPU e job
+
+```
+watch -n 1 nvidia-smi           # Monitoraggio GPU in tempo reale dal nodo compute
+job_stats.py <jobid>            # Link a Grafana con consumi live del job
+ssh <nodo_compute>              # Connettiti direttamente al nodo (se hai una sessione attiva)
+```
+
+---
+
+## Debug e best practice
+
+```
+comando || exit                 # Se il comando fallisce, termina subito lo script
+source /path/to/venv/bin/activate # Attiva un venv da qualsiasi posizione
+#SBATCH --gres=gpu:<tipo>:<num> # Richiedi una o più GPU in uno script Slurm
+#SBATCH --error=<file>.err      # Log di errore
+#SBATCH --output=<file>.out     # Log di output
+```
+
+---
+
+## Ricette tipiche
+
+**Creare e attivare venv da shell pulita:**
+
+```
+module purge
+module load Python/3.11.3-GCCcore-12.3.0
+python3 -m venv --system-site-packages vlm_train
+source vlm_train/bin/activate
+```
+
+**Sottomettere uno script batch:**
+
+```
+sbatch mio_script.slurm
+```
+
+**Esempio di monitoraggio sessione interattiva:**
+
+```
+squeue -u $USER
+# Identifica il nodo, poi:
+ssh <nome_nodo>
+watch -n 1 nvidia-smi
+```
+
+---
+
+## Note
+
+* Usa sempre `module purge` per evitare conflitti.
+* `--gres=gpu:A100fat:1` è indispensabile per avere GPU.
+* Per script batch, specifica output e error log chiari.
+* Puoi combinare path relativi e assoluti per lavorare con i venv.
+* Tieni d’occhio la quota e il numero di file (inode).
