@@ -31,17 +31,17 @@ import types, unsloth_zoo.peft_utils as _pz
 # 0.  GLOBAL HYPERPARAMETERS & CONFIGURATIONS  ─────────────────────────
 # ---------------------------------------------------------------------
 DEFAULT_MODEL_NAME = "unsloth/gemma-3-4b-it"
-DEFAULT_N_SAMPLES_TRAIN = 3  # Number of samples for quick testing
+DEFAULT_N_SAMPLES_TRAIN = 1000  # Number of samples for quick testing
 DEFAULT_MAX_STEPS = 7
 DEFAULT_LEARNING_RATE = 5e-6
-DEFAULT_NUM_GENERATIONS = 4
+DEFAULT_NUM_GENERATIONS = 6
 DEFAULT_PER_DEVICE_TRAIN_BATCH_SIZE = 1
 DEFAULT_GRADIENT_ACCUMULATION_STEPS = 8
-DEFAULT_LORA_R = 16
-DEFAULT_LORA_ALPHA = 16
+DEFAULT_LORA_R = 32
+DEFAULT_LORA_ALPHA = 32
 DEFAULT_OUTPUT_DIR = "outputs"
 DEFAULT_TENSORBOARD_DIR = "tensorboard"
-DEFAULT_SAVE_STEPS = 50
+DEFAULT_SAVE_STEPS = 1
 
 # CheXpert classification labels
 LABEL_COLS = [
@@ -312,10 +312,10 @@ def main():
         optim="paged_adamw_8bit",
         sync_ref_model=True,
         logging_steps=1,
-        max_completion_length=1024,
+        max_completion_length=16000,
         temperature=1.1,
-        evaluation_strategy="steps",
-        eval_steps=args.save_steps,
+        #evaluation_strategy="steps",
+        #eval_steps=args.save_steps,
         save_strategy="steps",
         save_steps=args.save_steps,
         report_to="tensorboard",
