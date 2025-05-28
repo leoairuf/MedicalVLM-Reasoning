@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-#SBATCH -A SNIC2022-5-277                
+#SBATCH -A NAISS2024-5-577                
 #SBATCH -p alvis                         
 #SBATCH -N 1 --gpus-per-node=A100fat:1   
 #SBATCH -t 7-00:00:00                    
