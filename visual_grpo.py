@@ -35,17 +35,17 @@ import types, unsloth_zoo.peft_utils as _pz
 # 0.  GLOBAL HYPERPARAMETERS & CONFIGURATIONS  ─────────────────────────
 # ---------------------------------------------------------------------
 DEFAULT_MODEL_NAME = "unsloth/gemma-3-4b-it"
-DEFAULT_N_SAMPLES_TRAIN = 2  # Number of samples for quick testing
-DEFAULT_MAX_STEPS = 7
+DEFAULT_N_SAMPLES_TRAIN = 1000  # Number of samples for quick testing
+DEFAULT_MAX_STEPS = 2000
 DEFAULT_LEARNING_RATE = 5e-6
 DEFAULT_NUM_GENERATIONS = 6
-DEFAULT_PER_DEVICE_TRAIN_BATCH_SIZE = 4
-DEFAULT_GRADIENT_ACCUMULATION_STEPS = 2
+DEFAULT_PER_DEVICE_TRAIN_BATCH_SIZE = 4  # 2
+DEFAULT_GRADIENT_ACCUMULATION_STEPS = 4
 DEFAULT_LORA_R = 32
 DEFAULT_LORA_ALPHA = 32
 DEFAULT_OUTPUT_DIR = "outputs"
 DEFAULT_TENSORBOARD_DIR = "tensorboard"
-DEFAULT_SAVE_STEPS = 1
+DEFAULT_SAVE_STEPS = 50
 
 # CheXpert classification labels
 LABEL_COLS = [
@@ -206,15 +206,15 @@ def reward_fn(prompts: list[str], completions: list[str], **kwargs):
         rewards.append(final_reward)
 
         # # Debug prints (commented out for production)
-        # print(f"\n--- Sample {idx} ---")
-        # print(f"Generated Text:\n{pred_text}")
-        # print(f"Ground Truth Labels: {current_gt_labels}")
-        # print(f"Format Reward: {fmt_r}")
-        # print(f"Parsed Predicted Labels: {pred_labels}")
-        # print(f"Classification Reward: {cls_r}")
-        # if set(pred_labels) == set(current_gt_labels):
-        #     print(f"Exact match bonus +1.0 applied")
-        # print(f"Final Reward: {final_reward}")
+        print(f"\n--- Sample {idx} ---")
+        print(f"Generated Text:\n{pred_text}")
+        print(f"Ground Truth Labels: {current_gt_labels}")
+        print(f"Format Reward: {fmt_r}")
+        print(f"Parsed Predicted Labels: {pred_labels}")
+        print(f"Classification Reward: {cls_r}")
+        if set(pred_labels) == set(current_gt_labels):
+            print(f"Exact match bonus +1.0 applied")
+        print(f"Final Reward: {final_reward}")
 
     # Ensure reward count matches completion count
     if len(rewards) != received_completions_count:
@@ -244,7 +244,7 @@ def main():
     print(f"Loading model: {args.model_name}")
     model, tokenizer = FastVisionModel.from_pretrained(
         args.model_name,
-        load_in_4bit=False,
+        load_in_4bit=True,
         load_in_8bit=False,
         use_gradient_checkpointing="unsloth",
     )
@@ -258,7 +258,7 @@ def main():
         r=args.lora_r,
         lora_alpha=args.lora_alpha,
         lora_dropout=0.05,
-        bias="none",
+        #bias="none",
         random_state=3407,
     )
 
@@ -281,13 +281,20 @@ def main():
 
     # Prepare instruction text
     instruction_text = (
-        "Analyze the provided chest X-ray image. First, provide your step-by-step reasoning "
-        "for the diagnosis within <thinking> tags. Then, provide the final classification "
-        "labels within <answer> tags. The classification should be a comma-separated list "
-        f"of applicable labels from the following: {', '.join(LABEL_COLS)}. "
-        "Example format: <thinking>The heart appears enlarged...</thinking><answer>Cardiomegaly, Pleural Effusion</answer>"
-        "IMPORTANT: Your entire response must contain ONLY the <thinking>...</thinking><answer>...</answer> structure. "
-        "Do not include any text before the <thinking> tag or after the </answer> tag."
+        "Analyze the provided chest X-ray image systematically. In <thinking> tags, provide detailed "
+        "visual-grounded long reasoning: (1) Describe specific anatomical regions you're examining "
+        "(heart borders, lung fields, pleural spaces, etc.), (2) Report what you observe in each region "
+        "(size, shape, density, positioning), (3) Explain the medical significance of your observations, "
+        "(4) Consider differential diagnoses and rule them in/out based on visual evidence, "
+        "(5) Re-examine areas if uncertain and refine your assessment until confident. "
+        "In <answer> tags, provide your final classification as a comma-separated list "
+        f"from: {', '.join(LABEL_COLS)}. "
+        "FORMAT REQUIREMENTS: Your response must contain ONLY the <thinking>...</thinking><answer>...</answer> structure. "
+        "Do NOT include any text before <thinking>, between </thinking> and <answer>, or after </answer>. "
+        "Start immediately with <thinking> and end immediately with </answer>. "
+        "Example: <thinking>I observe the cardiac silhouette... The right costophrenic angle shows... "
+        "This suggests... However, examining the left lower lobe more carefully...</thinking>"
+        "<answer>Cardiomegaly, Pleural Effusion</answer>"
     )
     
     # Prepare datasets with prompts and ground truth labels
@@ -320,7 +327,7 @@ def main():
         optim="paged_adamw_8bit",
         sync_ref_model=True,
         logging_steps=1,
-        max_completion_length=8000,
+        max_completion_length=8192,
         temperature=1.1,
         #evaluation_strategy="steps",
         #eval_steps=args.save_steps,
@@ -330,7 +337,7 @@ def main():
         output_dir=args.output_dir,
         logging_dir=tensorboard_path,
         save_total_limit=1,  # Keep only the latest checkpoint to save disk space
-        log_completions=True,
+        #log_completions=True,
     )
 
     trainer = GRPOTrainer(
