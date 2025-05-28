@@ -265,8 +265,12 @@ def main():
     raw_ds_eval = load_dataset("danjacobellis/chexpert", "default", split="validation")
 
     if args.n_samples_train > 0:
-        print(f"Using subset of {args.n_samples_train} samples for training")
-        raw_ds_train = raw_ds_eval.shuffle(seed=42).select(range(args.n_samples_train))
+        # Load full training set and select subset
+        raw_ds_train_full = load_dataset("danjacobellis/chexpert", "default", split="train")
+        available_samples = len(raw_ds_train_full)
+        actual_n_samples = min(args.n_samples_train, available_samples)
+        print(f"Using subset of {actual_n_samples} samples for training (requested: {args.n_samples_train}, available: {available_samples})")
+        raw_ds_train = raw_ds_train_full.shuffle(seed=42).select(range(actual_n_samples))
     else:
         print("Using full CheXpert 'train' split for training")
         raw_ds_train = load_dataset("danjacobellis/chexpert", "default", split="train")
