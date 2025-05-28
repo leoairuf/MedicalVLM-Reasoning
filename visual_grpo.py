@@ -15,7 +15,12 @@ import argparse
 from collections import defaultdict
 
 # Set Hugging Face cache to current working directory
-os.environ["HF_DATASETS_CACHE"] = os.path.join(os.getcwd(), "hf_cache")
+cache_dir = os.path.join(os.getcwd(), "hf_cache")
+os.environ["HF_DATASETS_CACHE"] = cache_dir
+os.environ["HF_HOME"] = cache_dir
+os.environ["HUGGINGFACE_HUB_CACHE"] = cache_dir
+os.environ["TRANSFORMERS_CACHE"] = cache_dir
+os.environ["HF_HUB_CACHE"] = cache_dir
 
 from datasets import load_dataset, config
 print(f"Cache directory: {config.HF_DATASETS_CACHE}")
