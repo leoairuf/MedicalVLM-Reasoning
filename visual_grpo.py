@@ -281,7 +281,7 @@ def main():
 
     # Prepare instruction text
     instruction_text = (
-        "You are a radiologist analyzing a chest X-ray. Provide your complete diagnostic reasoning in <thinking> tags, "
+        "You are a radiologist analyzing a chest X-ray. Provide your complete diagnostic reasoning step by step in <thinking> tags, "
         "then your final diagnosis in <answer> tags.\n\n"
         
         "In <thinking>:\n"
@@ -291,14 +291,20 @@ def main():
         "Consider possible diagnoses and rule them in or out based on evidence\n"
         "If uncertain about any finding, re-examine that area more carefully. Describe all your reasoning step by step. \n\n"
         
-        "In <answer>:\n\n\n"
-        f"List only the applicable conditions from: {', '.join(LABEL_COLS)}\n\n\n"
-        "Use this exact label names, separated by commas. \n\n"
+        "In <answer>:\n\n"
+        f"List only the applicable conditions from: {', '.join(LABEL_COLS)}\n\n"
+        "Use exact label names, separated by commas.\n\n"
         
-        "Your response must follow this exact structure:\n"
-        "<thinking>your long step by step analysis and reasoning</thinking>\n"
-        "<answer>your diagnosis comma separated from the List of conditions</answer>\n"
-        "without any extra text before <thinking> or after </answer>."
+        "EXAMPLE:\n"
+        "<thinking>I examine the cardiac silhouette which appears enlarged with a cardiothoracic ratio exceeding 50%. "
+        "The left heart border is prominent suggesting left ventricular enlargement. The lung fields show bilateral "
+        "lower lobe opacities with air bronchograms consistent with consolidation. The costophrenic angles are "
+        "blunted bilaterally indicating pleural effusions. No pneumothorax is visible. The mediastinum is not "
+        "widened. Based on these findings, I identify cardiomegaly, lung consolidation suggesting pneumonia, "
+        "and bilateral pleural effusions.</thinking>\n"
+        "<answer>Cardiomegaly, Pneumonia, Pleural Effusion</answer>\n\n"
+        
+        "Your response must follow this exact structure without any extra text before <thinking> or after </answer>."
     )
     
     # Prepare datasets with prompts and ground truth labels
@@ -331,7 +337,7 @@ def main():
         optim="paged_adamw_8bit",
         sync_ref_model=True,
         logging_steps=1,
-        max_completion_length=512,
+        max_completion_length=3000,
         temperature=1.1,
         #evaluation_strategy="steps",
         #eval_steps=args.save_steps,
