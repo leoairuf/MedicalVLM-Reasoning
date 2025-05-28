@@ -35,8 +35,8 @@ import types, unsloth_zoo.peft_utils as _pz
 # 0.  GLOBAL HYPERPARAMETERS & CONFIGURATIONS  ─────────────────────────
 # ---------------------------------------------------------------------
 DEFAULT_MODEL_NAME = "unsloth/gemma-3-4b-it"
-DEFAULT_N_SAMPLES_TRAIN = 2000  # Number of samples for quick testing
-DEFAULT_MAX_STEPS = 2000
+DEFAULT_N_SAMPLES_TRAIN = 5000  # Number of samples for quick testing
+DEFAULT_MAX_STEPS = 5000
 DEFAULT_LEARNING_RATE = 5e-6
 DEFAULT_NUM_GENERATIONS = 4
 DEFAULT_PER_DEVICE_TRAIN_BATCH_SIZE = 1  # 2
@@ -206,15 +206,15 @@ def reward_fn(prompts: list[str], completions: list[str], **kwargs):
         rewards.append(final_reward)
 
         # # Debug prints (commented out for production)
-        print(f"\n--- Sample {idx} ---")
-        print(f"Generated Text:\n{pred_text}")
-        print(f"Ground Truth Labels: {current_gt_labels}")
-        print(f"Format Reward: {fmt_r}")
-        print(f"Parsed Predicted Labels: {pred_labels}")
-        print(f"Classification Reward: {cls_r}")
-        if set(pred_labels) == set(current_gt_labels):
-            print(f"Exact match bonus +1.0 applied")
-        print(f"Final Reward: {final_reward}")
+        #print(f"\n--- Sample {idx} ---")
+        #print(f"Generated Text:\n{pred_text}")
+        #print(f"Ground Truth Labels: {current_gt_labels}")
+        #print(f"Format Reward: {fmt_r}")
+        #print(f"Parsed Predicted Labels: {pred_labels}")
+        #print(f"Classification Reward: {cls_r}")
+        #if set(pred_labels) == set(current_gt_labels):
+        #    print(f"Exact match bonus +1.0 applied")
+        #print(f"Final Reward: {final_reward}")
 
     # Ensure reward count matches completion count
     if len(rewards) != received_completions_count:
@@ -285,18 +285,20 @@ def main():
         "then your final diagnosis in <answer> tags.\n\n"
         
         "In <thinking>:\n"
-        "1. Systematically examine each anatomical region (heart, lungs, pleura, mediastinum, bones, devices)\n"
-        "2. Describe what you see in detail (size, shape, density, position of structures)\n"
-        "3. Identify any abnormalities and explain their medical significance\n"
-        "4. Consider possible diagnoses and rule them in or out based on evidence\n"
-        "5. If uncertain about any finding, re-examine that area more carefully\n\n"
+        "Systematically examine each anatomical region (heart, lungs, pleura, mediastinum, bones, devices)\n"
+        "Describe what you see in detail (size, shape, density, position of structures)\n"
+        "Identify any abnormalities and explain their medical significance\n"
+        "Consider possible diagnoses and rule them in or out based on evidence\n"
+        "If uncertain about any finding, re-examine that area more carefully. Describe all your reasoning step by step. \n\n"
         
-        "In <answer>:\n"
-        f"List only the applicable conditions from: {', '.join(LABEL_COLS)}\n"
-        "Use exact label names, separated by commas. If no abnormalities are found, write 'No Finding'.\n\n"
+        "In <answer>:\n\n\n"
+        f"List only the applicable conditions from: {', '.join(LABEL_COLS)}\n\n\n"
+        "Use this exact label names, separated by commas. \n\n"
         
-        "CRITICAL: Your response must contain ONLY <thinking>your long step by step analysis</thinking><answer>your diagnosis</answer>\n"
-        "Do not add any text before <thinking> or after </answer>."
+        "Your response must follow this exact structure:\n"
+        "<thinking>your long step by step analysis and reasoning</thinking>\n"
+        "<answer>your diagnosis comma separated from the List of conditions</answer>\n"
+        "without any extra text before <thinking> or after </answer>."
     )
     
     # Prepare datasets with prompts and ground truth labels
@@ -329,7 +331,7 @@ def main():
         optim="paged_adamw_8bit",
         sync_ref_model=True,
         logging_steps=1,
-        max_completion_length=3000,
+        max_completion_length=512,
         temperature=1.1,
         #evaluation_strategy="steps",
         #eval_steps=args.save_steps,
