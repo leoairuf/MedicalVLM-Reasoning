@@ -35,7 +35,7 @@ import types, unsloth_zoo.peft_utils as _pz
 # 0.  GLOBAL HYPERPARAMETERS & CONFIGURATIONS  ─────────────────────────
 # ---------------------------------------------------------------------
 DEFAULT_MODEL_NAME = "unsloth/gemma-3-4b-it"
-DEFAULT_N_SAMPLES_TRAIN = 1000  # Number of samples for quick testing
+DEFAULT_N_SAMPLES_TRAIN = 2000  # Number of samples for quick testing
 DEFAULT_MAX_STEPS = 2000
 DEFAULT_LEARNING_RATE = 5e-6
 DEFAULT_NUM_GENERATIONS = 4
@@ -281,20 +281,22 @@ def main():
 
     # Prepare instruction text
     instruction_text = (
-        "Analyze the provided chest X-ray image systematically. In <thinking> tags, provide detailed "
-        "visual-grounded long reasoning: (1) Describe specific anatomical regions you're examining "
-        "(heart borders, lung fields, pleural spaces, etc.), (2) Report what you observe in each region "
-        "(size, shape, density, positioning), (3) Explain the medical significance of your observations, "
-        "(4) Consider differential diagnoses and rule them in/out based on visual evidence, "
-        "(5) Re-examine areas if uncertain and refine your assessment until confident. "
-        "In <answer> tags, provide your final classification as a comma-separated list "
-        f"from: {', '.join(LABEL_COLS)}. "
-        "FORMAT REQUIREMENTS: Your response must contain ONLY the <thinking>...</thinking><answer>...</answer> structure. "
-        "Do NOT include any text before <thinking>, between </thinking> and <answer>, or after </answer>. "
-        "Start immediately with <thinking> and end immediately with </answer>. "
-        "Example: <thinking>I observe the cardiac silhouette... The right costophrenic angle shows... "
-        "This suggests... However, examining the left lower lobe more carefully...</thinking>"
-        "<answer>Cardiomegaly, Pleural Effusion</answer>"
+        "You are a radiologist analyzing a chest X-ray. Provide your complete diagnostic reasoning in <thinking> tags, "
+        "then your final diagnosis in <answer> tags.\n\n"
+        
+        "In <thinking>:\n"
+        "1. Systematically examine each anatomical region (heart, lungs, pleura, mediastinum, bones, devices)\n"
+        "2. Describe what you see in detail (size, shape, density, position of structures)\n"
+        "3. Identify any abnormalities and explain their medical significance\n"
+        "4. Consider possible diagnoses and rule them in or out based on evidence\n"
+        "5. If uncertain about any finding, re-examine that area more carefully\n\n"
+        
+        "In <answer>:\n"
+        f"List only the applicable conditions from: {', '.join(LABEL_COLS)}\n"
+        "Use exact label names, separated by commas. If no abnormalities are found, write 'No Finding'.\n\n"
+        
+        "CRITICAL: Your response must contain ONLY <thinking>your long step by step analysis</thinking><answer>your diagnosis</answer>\n"
+        "Do not add any text before <thinking> or after </answer>."
     )
     
     # Prepare datasets with prompts and ground truth labels
@@ -327,7 +329,7 @@ def main():
         optim="paged_adamw_8bit",
         sync_ref_model=True,
         logging_steps=1,
-        max_completion_length=4096,
+        max_completion_length=3000,
         temperature=1.1,
         #evaluation_strategy="steps",
         #eval_steps=args.save_steps,
