@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #SBATCH -A NAISS2024-5-577                
 #SBATCH -p alvis                         
-#SBATCH -N 1 --gpus-per-node=A100fat:1   
+#SBATCH -N 1 --gpus-per-node=A40:1   
 #SBATCH -t 7-00:00:00                    
 #SBATCH --error=medical_vlm_reasoner.err 
 #SBATCH --output=medical_vlm_reasoner.out 
