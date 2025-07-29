@@ -182,7 +182,10 @@ wandb
 hf_cache
 
 # Training outputs
-outputs/
 tensorboard/
 checkpoints/
 final_model/
+**/outputs*/
+
+*.err
+*.out
